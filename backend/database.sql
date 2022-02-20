@@ -23,6 +23,7 @@ CREATE TABLE courses (
 CREATE TABLE user_course (
 	user_id UUID,
 	course_id SERIAL,
+	grade INTEGER,
 	FOREIGN KEY (user_id) REFERENCES users(user_id),
 	FOREIGN KEY (course_id) REFERENCES courses(course_id)
 );

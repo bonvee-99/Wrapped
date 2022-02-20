@@ -3,12 +3,13 @@ import expressRouter, { Router, Request, Response, application } from "express";
 import pool from "../db";
 const router: Router = expressRouter.Router();
 import authorize from "../middleware/authorize";
+import wrapMaker from "../utilities/wrapMaker";
 
 // get all of a user's courses
 router.get("/", authorize, async (req: any, res: Response) => {
   try {
     const userCourses = await pool.query(
-      "SELECT course_id from user_course WHERE user_id = $1",
+      "SELECT course_id, grade from user_course WHERE user_id = $1",
       [req.user.id]
     );
 
@@ -19,7 +20,9 @@ router.get("/", authorize, async (req: any, res: Response) => {
         "SELECT * FROM courses WHERE course_id = $1",
         [userCourses.rows[i].course_id]
       );
-      courses.push(course.rows[0]);
+      const c = course.rows[0];
+      c.grade = userCourses.rows[i].grade;
+      courses.push(c);
     }
 
     res.send(courses);
@@ -31,7 +34,7 @@ router.get("/", authorize, async (req: any, res: Response) => {
 
 // route for adding a relationship between course and user
 router.post("/add", authorize, async (req: any, res: Response) => {
-  const { subject, code, section, year } = req.body;
+  const { subject, code, section, year, grade } = req.body;
   // make sure course is valid
   try {
     const validCourse = await axios.get(
@@ -61,8 +64,8 @@ router.post("/add", authorize, async (req: any, res: Response) => {
       );
       //  link course to user
       const userCourse = await pool.query(
-        "INSERT INTO user_course (user_id, course_id) VALUES ($1, $2)",
-        [req.user.id, addCourse.rows[0].course_id]
+        "INSERT INTO user_course (user_id, course_id, grade) VALUES ($1, $2, $3)",
+        [req.user.id, addCourse.rows[0].course_id, grade]
       );
       return res.send("Added course successfully!");
       // if course does exist
@@ -75,8 +78,8 @@ router.post("/add", authorize, async (req: any, res: Response) => {
       // if course does not belong to user already
       if (userCourse.rows.length === 0) {
         const addCourse = await pool.query(
-          "INSERT INTO user_course (user_id, course_id) VALUES ($1, $2)",
-          [req.user.id, findCourse.rows[0].course_id]
+          "INSERT INTO user_course (user_id, course_id, grade) VALUES ($1, $2, $3)",
+          [req.user.id, findCourse.rows[0].course_id, grade]
         );
         // already exists (do nothing)
       } else {
@@ -111,5 +114,37 @@ router.delete("/course/:id", authorize, async (req: any, res: Response) => {
 });
 
 // TODO: create wrapped for year
+router.post("/get-wrapped", authorize, async (req: any, res: Response) => {
+  try {
+    const { year } = req.body;
+    // 1. query all the users courses
+    const userCourses = await pool.query(
+      "SELECT course_id, grade from user_course WHERE user_id = $1",
+      [req.user.id]
+    );
+
+    // 2. get all their courses with the given year
+    let courses: Array<any> = [];
+
+    for (let i = 0; i < userCourses.rows.length; i++) {
+      const course = await pool.query(
+        "SELECT * FROM courses WHERE course_id = $1 AND course_year = $2",
+        [userCourses.rows[i].course_id, year]
+      );
+
+      const c = course.rows[0];
+      c.grade = userCourses.rows[0].grade;
+      courses.push(course.rows[0]);
+    }
+
+    // build wrapped
+    const wrapped = wrapMaker(courses);
+
+    res.send(wrapped);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send("Server Error!");
+  }
+});
 
 export default router;
