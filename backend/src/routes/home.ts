@@ -9,23 +9,10 @@ import wrapMaker from "../utilities/wrapMaker";
 router.get("/", authorize, async (req: any, res: Response) => {
   try {
     const userCourses = await pool.query(
-      "SELECT course_id, grade from user_course WHERE user_id = $1",
+      "SELECT u.grade, c.course_id, c.course_subject, c.course_code, c.course_section, c.course_year FROM user_course AS u INNER JOIN courses as c ON c.course_id = u.course_id WHERE u.user_id = $1",
       [req.user.id]
     );
-
-    let courses: Array<any> = [];
-
-    for (let i = 0; i < userCourses.rows.length; i++) {
-      const course = await pool.query(
-        "SELECT * FROM courses WHERE course_id = $1",
-        [userCourses.rows[i].course_id]
-      );
-      const c = course.rows[0];
-      c.grade = userCourses.rows[i].grade;
-      courses.push(c);
-    }
-
-    res.send(courses);
+    res.send(userCourses.rows);
   } catch (error) {
     console.error(error);
     res.status(500).send("Server Error!");
@@ -81,6 +68,7 @@ router.post("/add", authorize, async (req: any, res: Response) => {
           "INSERT INTO user_course (user_id, course_id, grade) VALUES ($1, $2, $3)",
           [req.user.id, findCourse.rows[0].course_id, grade]
         );
+        return res.send("Added relation successfully!");
         // already exists (do nothing)
       } else {
         return res
@@ -119,26 +107,12 @@ router.post("/get-wrapped", authorize, async (req: any, res: Response) => {
     const { year } = req.body;
     // 1. query all the users courses
     const userCourses = await pool.query(
-      "SELECT course_id, grade from user_course WHERE user_id = $1",
-      [req.user.id]
+      "SELECT u.grade, c.course_id, c.course_subject, c.course_code, c.course_section, c.course_year FROM user_course AS u INNER JOIN courses as c ON c.course_id = u.course_id WHERE u.user_id = $1 AND c.course_year = $2",
+      [req.user.id, year]
     );
 
-    // 2. get all their courses with the given year
-    let courses: Array<any> = [];
-
-    for (let i = 0; i < userCourses.rows.length; i++) {
-      const course = await pool.query(
-        "SELECT * FROM courses WHERE course_id = $1 AND course_year = $2",
-        [userCourses.rows[i].course_id, year]
-      );
-
-      const c = course.rows[0];
-      c.grade = userCourses.rows[0].grade;
-      courses.push(course.rows[0]);
-    }
-
     // build wrapped
-    const wrapped = wrapMaker(courses);
+    const wrapped = await wrapMaker(userCourses.rows);
 
     res.send(wrapped);
   } catch (error) {

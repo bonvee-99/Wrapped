@@ -4,13 +4,15 @@ import authRoutes from "./routes/auth";
 import homeRoutes from "./routes/home";
 import cors from "cors";
 
+
 const PORT = process.env.PORT || 5000;
 
 app.use(express.json());
 app.use(cors());
 
 // Home route
-app.get("/", (req: Request, res: Response) => {
+app.get("/", async (req: Request, res: Response) => {
+
   res.send("hi");
 });
 

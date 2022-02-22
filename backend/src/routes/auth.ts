@@ -4,7 +4,6 @@ const router: Router = expressRouter.Router();
 import bcrypt from "bcrypt";
 import jwtGenerator from "../utilities/jwtGenerator";
 import authorize from "../middleware/authorize";
-import axios from "axios";
 
 // register route
 router.post("/register", async (req: Request, res: Response) => {
@@ -61,7 +60,7 @@ router.post("/login", async (req: Request, res: Response) => {
     const token = jwtGenerator(user.rows[0].user_id);
 
     res.send({ token });
-  } catch (error) {
+  } catch (error: unknown) {
     console.error(error);
     res.status(500).send("Server Error!");
   }
